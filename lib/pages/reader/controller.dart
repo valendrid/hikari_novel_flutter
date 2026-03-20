@@ -26,6 +26,7 @@ import '../../models/page_state.dart';
 import '../../network/api.dart';
 import '../../service/db_service.dart';
 import '../../service/local_storage_service.dart';
+import 'widgets/paper_curl_pager.dart';
 
 class ReaderController extends GetxController {
   final _novelDetailController = Get.find<NovelDetailController>();
@@ -42,6 +43,7 @@ class ReaderController extends GetxController {
   int get currentVolumeTotal => catalogue.length;
 
   final pageController = PageController();
+  final paperCurlController = PaperCurlPagerController();
 
   final _battery = Battery();
   RxInt batteryLevel = 0.obs;
@@ -123,7 +125,7 @@ class ReaderController extends GetxController {
   void onReady() async {
     super.onReady();
     if (readerSettingsState.value.wakeLock) WakelockPlus.toggle(enable: true);
-    if (readerSettingsState.value.immersionMode) SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _applyReaderSystemUi(readerSettingsState.value.immersionMode);
 
     /*
      1) 至于这里的cid为什么不直接使用上面的<get cid>，是因为上面的<get cid>依赖currentVolumeIndex和currentChapterIndex。
@@ -146,7 +148,7 @@ class ReaderController extends GetxController {
   void onClose() {
     TtsService.instance.stop();
     if (readerSettingsState.value.wakeLock) WakelockPlus.toggle(enable: false);
-    if (readerSettingsState.value.immersionMode) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _applyReaderSystemUi(false);
     super.onClose();
   }
 
@@ -239,6 +241,10 @@ class ReaderController extends GetxController {
 
   /// 跳转页数
   void jumpToPage(int page) {
+    if (readerSettingsState.value.direction != ReaderDirection.upToDown && readerSettingsState.value.pageTurningAnimation) {
+      paperCurlController.jumpToPage(page);
+      return;
+    }
     readerSettingsState.value.pageTurningAnimation
         ? pageController.animateToPage(page, duration: const Duration(milliseconds: 200), curve: Curves.linear)
         : pageController.jumpToPage(page);
@@ -362,12 +368,27 @@ class ReaderController extends GetxController {
 
   void changeImmersionMode(bool enabled) {
     readerSettingsState.value = readerSettingsState.value.copyWith(immersionMode: enabled);
-    if (enabled) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    _applyReaderSystemUi(enabled);
     LocalStorageService.instance.setReaderImmersionMode(enabled);
+  }
+
+  void _applyReaderSystemUi(bool immersive) {
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+
+    if (immersive) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      return;
+    }
+
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ),
+    );
   }
 
   void changeShowStatusBar(bool enabled) {

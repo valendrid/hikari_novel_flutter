@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../network/request.dart';
+import 'paper_curl_pager.dart';
 
 class HorizontalReadPage extends StatefulWidget {
   final String text;
@@ -15,8 +16,16 @@ class HorizontalReadPage extends StatefulWidget {
   final bool reverse;
   final bool isDualPage;
   final double dualPageSpacing;
+  final bool pageTurningAnimation;
+  final PaperCurlPagerController? paperCurlController;
+  final Widget? pageFooter;
+  final Color? backgroundColor;
+  final Color? backsideColor;
   final Function(int index, int max) onPageChanged;
   final Function(int index) onViewImage;
+  final VoidCallback? onCenterTap;
+  final VoidCallback? onReachStart;
+  final VoidCallback? onReachEnd;
 
   const HorizontalReadPage(
     this.text,
@@ -28,6 +37,14 @@ class HorizontalReadPage extends StatefulWidget {
     this.reverse = false,
     required this.isDualPage,
     required this.dualPageSpacing,
+    this.pageTurningAnimation = false,
+    this.paperCurlController,
+    this.pageFooter,
+    this.backgroundColor,
+    this.backsideColor,
+    this.onCenterTap,
+    this.onReachStart,
+    this.onReachEnd,
     required this.onPageChanged,
     required this.onViewImage,
     super.key,
@@ -114,20 +131,73 @@ class _HorizontalReadPageState extends State<HorizontalReadPage> with WidgetsBin
         });
       }
       resetPage();
+      return;
+    }
+
+    if (oldWidget.pageTurningAnimation != widget.pageTurningAnimation || oldWidget.isDualPage != widget.isDualPage || oldWidget.initIndex != widget.initIndex) {
+      final target = (widget.initIndex.clamp(0, _pageCount() <= 0 ? 0 : _pageCount() - 1) as num).toInt();
+      index = target;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.pageTurningAnimation) {
+          widget.paperCurlController?.jumpToPage(target);
+        } else if (widget.controller.hasClients) {
+          widget.controller.jumpToPage(target);
+        }
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: widget.controller,
-      reverse: widget.reverse,
-      itemCount: _pageCount(),
-      onPageChanged: (v) {
-        index = v;
-        widget.onPageChanged(v, _pageCount());
+    if (widget.pageTurningAnimation) {
+      return PaperCurlPager(
+        controller: widget.paperCurlController,
+        pages: List<Widget>.generate(_pageCount(), (i) => RepaintBoundary(child: _buildPage(i))),
+        initialIndex: (index.clamp(0, _pageCount() <= 0 ? 0 : _pageCount() - 1) as num).toInt(),
+        interactivePageIndices: {
+          for (var i = 0; i < _pageCount(); i++)
+            if (_spreadContainsImage(i)) i,
+        },
+        reverse: widget.reverse,
+        animationEnabled: true,
+        backgroundColor: widget.backgroundColor ?? Theme.of(context).colorScheme.surface,
+        backsideColor: widget.backsideColor ??
+            Color.lerp(
+              widget.backgroundColor ?? Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surfaceTint,
+              Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.10,
+            ),
+        onCenterTap: widget.onCenterTap,
+        onReachStart: widget.onReachStart,
+        onReachEnd: widget.onReachEnd,
+        onIndexChanged: (v) {
+          index = v;
+          widget.onPageChanged(v, _pageCount());
+        },
+      );
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapUp: (details) {
+        final width = MediaQuery.of(context).size.width;
+        final left = width * 0.28;
+        final right = width * 0.72;
+        final x = details.localPosition.dx;
+        if (x > left && x < right) {
+          widget.onCenterTap?.call();
+        }
       },
-      itemBuilder: (_, i) => _buildPage(i),
+      child: PageView.builder(
+        controller: widget.controller,
+        reverse: widget.reverse,
+        itemCount: _pageCount(),
+        onPageChanged: (v) {
+          index = v;
+          widget.onPageChanged(v, _pageCount());
+        },
+        itemBuilder: (_, i) => _buildPage(i),
+      ),
     );
   }
 
@@ -143,16 +213,38 @@ class _HorizontalReadPageState extends State<HorizontalReadPage> with WidgetsBin
     }
   }
 
-  Widget _buildPage(int index) {
-    if (widget.isDualPage) {
-      return _buildDualPage(index);
-    } else {
-      if (pages[index] is TextPage) {
-        return _buildSingleText(index);
-      } else {
-        return _buildImage(index);
-      }
+
+  bool _spreadContainsImage(int index) {
+    if (!widget.isDualPage) {
+      return index >= 0 && index < pages.length && pages[index] is ImagePage;
     }
+
+    final firstIndex = index * 2;
+    final secondIndex = firstIndex + 1;
+    final firstHasImage = firstIndex >= 0 && firstIndex < pages.length && pages[firstIndex] is ImagePage;
+    final secondHasImage = secondIndex >= 0 && secondIndex < pages.length && pages[secondIndex] is ImagePage;
+    return firstHasImage || secondHasImage;
+  }
+
+  Widget _buildPage(int index) {
+    final child = widget.isDualPage
+        ? _buildDualPage(index)
+        : (pages[index] is TextPage ? _buildSingleText(index) : _buildImage(index));
+
+    if (widget.pageFooter == null) {
+      return child;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: IgnorePointer(child: widget.pageFooter!),
+        ),
+      ],
+    );
   }
 
   Widget _buildDualPage(int i) {
@@ -321,7 +413,11 @@ class _HorizontalReadPageState extends State<HorizontalReadPage> with WidgetsBin
     setState(() {}); //刷新UI
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.jumpToPage(widget.initIndex);
+      if (widget.pageTurningAnimation) {
+        widget.paperCurlController?.jumpToPage((widget.initIndex.clamp(0, _pageCount() <= 0 ? 0 : _pageCount() - 1) as num).toInt());
+      } else {
+        widget.controller.jumpToPage((widget.initIndex.clamp(0, _pageCount() <= 0 ? 0 : _pageCount() - 1) as num).toInt());
+      }
     });
   }
 
