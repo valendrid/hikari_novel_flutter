@@ -1,4 +1,4 @@
-name: Build Flutter APK (FINAL DEFINITIVE FIX)
+name: Build Flutter APK (FINAL FIX)
 on:
   workflow_dispatch:
 
@@ -8,14 +8,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: Setup Flutter 3.22.3
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.3'
+          channel: stable
 
-      # 👇 这一行自动修复项目的 Dart 版本限制（关键！）
-      - name: Fix pubspec.yaml
-        run: sed -i 's/^sdk: ^3.10.7/sdk: >=3.0.0 <4.0.0/' pubspec.yaml
+      # 👇 修正版 sed 命令，精准匹配并修改 SDK 约束
+      - name: Fix pubspec.yaml SDK constraint
+        run: |
+          sed -i 's/sdk: ^3.10.7/sdk: ">=3.0.0 <4.0.0"/' pubspec.yaml
+          cat pubspec.yaml | grep sdk
 
       - name: Install dependencies
         run: flutter pub get
