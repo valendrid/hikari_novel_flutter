@@ -1,4 +1,4 @@
-name: Build Flutter APK (FINAL FIX)
+name: Build Flutter APK (FINAL WIN)
 on:
   workflow_dispatch:
 
@@ -8,18 +8,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter 3.22.3
+      # 🔥 用 Dart 3.5.0+ 的 Flutter 版本
+      - name: Setup Flutter 3.24.0
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.3'
+          flutter-version: '3.24.0'
 
-      # 同时修复两个问题！
-      - name: Fix pubspec.yaml
-        run: |
-          sed -i 's/sdk: ^3.10.7/sdk: ">=3.5.0 <4.0.0"/' pubspec.yaml
-          sed -i 's/flutter_lints: .*/flutter_lints: ">=3.0.0"/' pubspec.yaml
+      - name: Fix Dart SDK
+        run: sed -i 's/sdk: ^3.10.7/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml
 
-      - name: Get dependencies
+      - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK
@@ -30,3 +28,4 @@ jobs:
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
+
