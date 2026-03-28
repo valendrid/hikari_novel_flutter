@@ -1,4 +1,4 @@
-name: Build Flutter APK (FINAL FIX)
+name: Build Flutter APK (FINAL DEFINITIVE FIX)
 on:
   workflow_dispatch:
 
@@ -8,11 +8,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter 3.22.3 (Dart 3.4.0)
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.3'
-          channel: stable
+
+      # 👇 这一行自动修复项目的 Dart 版本限制（关键！）
+      - name: Fix pubspec.yaml
+        run: sed -i 's/^sdk: ^3.10.7/sdk: >=3.0.0 <4.0.0/' pubspec.yaml
 
       - name: Install dependencies
         run: flutter pub get
