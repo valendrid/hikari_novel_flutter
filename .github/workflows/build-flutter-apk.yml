@@ -1,0 +1,36 @@
+name: Build Flutter APK (Fixed dart pub error)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 安装 Flutter 环境（关键：用 Flutter action 而不是 Dart action）
+      - name: Setup Flutter 3.16.0
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.0'
+          channel: 'stable'
+
+      # 修复 Dart SDK 版本约束
+      - name: Fix pubspec.yaml
+        run: |
+          sed -i 's/sdk: ^3.10.7/sdk: ">=3.2.0 <4.0.0"/' pubspec.yaml
+
+      # 清理缓存 + 用 flutter pub get 安装依赖（核心修复）
+      - name: Clean and install dependencies
+        run: flutter clean && flutter pub get
+
+      # 编译 release 版 APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # 上传编译好的 APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
