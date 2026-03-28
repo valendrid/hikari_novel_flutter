@@ -12,15 +12,14 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.3'
-          channel: stable
 
-      # 👇 修正版 sed 命令，精准匹配并修改 SDK 约束
-      - name: Fix pubspec.yaml SDK constraint
+      # 同时修复两个问题！
+      - name: Fix pubspec.yaml
         run: |
-          sed -i 's/sdk: ^3.10.7/sdk: ">=3.0.0 <4.0.0"/' pubspec.yaml
-          cat pubspec.yaml | grep sdk
+          sed -i 's/sdk: ^3.10.7/sdk: ">=3.5.0 <4.0.0"/' pubspec.yaml
+          sed -i 's/flutter_lints: .*/flutter_lints: ">=3.0.0"/' pubspec.yaml
 
-      - name: Install dependencies
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
